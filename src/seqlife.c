@@ -16,6 +16,7 @@
 #define MAX_LIST_LEN 100
 
 void gameOfLife(char *fileName, int gens, int rows, int cols, int* genList, int listLen);
+void printTheBoard(int *gameBoard, int rows, int cols);
 int compareInt(const void *a, const void *b);
 
 int main(int argc, char* argv[]) {
@@ -47,9 +48,12 @@ int main(int argc, char* argv[]) {
       cols = atoi(argv[++i]);
     } else if(strcmp(argv[i], "--list")==0 && i+1 < argc) {
       //set list
-      while(i < argc && listLen < MAX_LIST_LEN) {
-        if(isdigit(argv[i+1])) {
+      while(i+1 < argc && listLen < MAX_LIST_LEN) {
+        printf("%s\n",argv[i+1]); fflush(stdout);
+        if(isdigit(argv[i+1][0])) {
+	  printf("adding: "); fflush(stdout);
 	  genList[listLen++] = atoi(argv[++i]);
+	  printf("added %s\n", argv[i]); fflush(stdout);
 	}
       }
       qsort(genList, listLen, sizeof(int), compareInt); //Make them in order.
@@ -84,6 +88,7 @@ void gameOfLife(char *fileName, int gens, int rows, int cols, int* genList, int 
   int max_size = rows*cols;
   int c = fgetc(inFile);
   int i = 0; int j = 0;
+  //printf("reading the file\n"); fflush(stdout);
   while( c != EOF && i < max_size) {
     if(isdigit(c)) {
       gameBoard[i++] = c - '0'; //That's right.
@@ -91,6 +96,9 @@ void gameOfLife(char *fileName, int gens, int rows, int cols, int* genList, int 
     }
     c = fgetc(inFile);
   }
+  //printf("done reading the file\n"); fflush(stdout);
+  
+  printTheBoard(gameBoard, rows, cols);
 
   /*for(i = 0; i < cols; i++) {
     for(j = 0; j < rows; j++) {
@@ -102,46 +110,59 @@ void gameOfLife(char *fileName, int gens, int rows, int cols, int* genList, int 
   int gen = 0; int listCounter = 0;
   int neighborCount = 0;
   for(gen = 0; gen < gens; gen++) {
-    for(i = 0; i < cols; i++) {
-      for(j = 0; j < rows; j++) {
-        int live = gameBoard[j*cols + i];
-	neighborCount += gameBoard[(j == 0 ? rows-1 : j-1)*cols + (i == 0 ? cols-1 : i-1)];
-	neighborCount += gameBoard[(j == 0 ? rows-1 : j-1)*cols + i];
-	neighborCount += gameBoard[(j == 0 ? rows-1 : j-1)*cols + (i+1)%cols];
-	neighborCount += gameBoard[j + (i == 0 ? cols-1 : i-1)];
-	neighborCount += gameBoard[j + (i+1)%cols];
-	neighborCount += gameBoard[(j+1)%rows*cols + (i == 0 ? cols-1 : i-1)];
-	neighborCount += gameBoard[(j+1)%rows*cols + i];
-	neighborCount += gameBoard[(j+1)%rows*cols + (i+1)%cols];
-
+    
+    //If current gen is for printing, then print.
+    if(gen == genList[listCounter]) {
+      printf("gen: %d\n", gen);
+      printTheBoard(gameBoard, rows, cols);
+      listCounter++;
+    }
+    for(i = 0; i < rows; i++) {
+      for(j = 0; j < cols; j++) {
+        int live = gameBoard[i*cols + j];
+	neighborCount = 0;
+	neighborCount += gameBoard[(i == 0 ? rows-1 : i-1)*cols + (j == 0 ? cols-1 : j-1)];
+	neighborCount += gameBoard[(i == 0 ? rows-1 : i-1)*cols + j];
+	neighborCount += gameBoard[(i == 0 ? rows-1 : i-1)*cols + (j+1)%cols];
+	neighborCount += gameBoard[i*cols + (j == 0 ? cols-1 : j-1)];
+	neighborCount += gameBoard[i*cols + (j+1)%cols];
+	neighborCount += gameBoard[(i+1)%rows*cols + (j == 0 ? cols-1 : j-1)];
+	neighborCount += gameBoard[(i+1)%rows*cols + j];
+	neighborCount += gameBoard[(i+1)%rows*cols + (j+1)%cols];
+	//printf("(%d,%d): live: %d, neighbors: %d\n",i,j,live,neighborCount);
 	if(live) {
 	  if(neighborCount < 2 || neighborCount >3) {
-	    nextGen[j*cols + i] = 0;
-	  } else nextGen[j*cols +i] = 1;
+	    nextGen[i*cols + j] = 0;
+	  } else nextGen[i*cols +j] = 1;
 	} else {
 	  if(neighborCount == 3) {
-	    nextGen[j*cols+i] = 1;
+	    nextGen[i*cols+j] = 1;
 	  } else {
-	    nextGen[j*cols+i] = 0;
+	    nextGen[i*cols+j] = 0;
 	  }
 	}
       }
     }
+    //clock_t goal = 1000*(CLOCKS_PER_SEC/1000) + clock();
+    //while (goal > clock()) gen = gen;
     temp = nextGen;
     nextGen = gameBoard;
     gameBoard = temp;
   }
   
   free(gameBoard);
-  free(temp);
+  free(nextGen);
 }
 
 void printTheBoard(int *gameBoard, int rows, int cols) {
   int i = 0; int j = 0;
   for(i = 0; i < cols; i++) {
+    //printf("Row %d: ", i);
     for(j = 0; j < rows; j++) {
-      printf("%d ", gameBoard[j*cols+i]);
+      printf("%c ", gameBoard[j*cols+i] == 1 ? 'x' : ' ');
+      fflush(stdout);
     }
+    printf("\n"); fflush(stdout);
   }
 }
 
