@@ -4,7 +4,6 @@
  */
 
 #include<stdio.h>
-#include<time.h>
 #include<stdlib.h>
 #include<ctype.h>
 #include<string.h>
@@ -21,15 +20,15 @@ void printTheBoard(int *gameBoard, int rows, int cols);
 int compareInt(const void *a, const void *b);
 
 int main(int argc, char* argv[]) {
-  
+
+
   MPI_Init(&argc, &argv);
+  int myRank; 
+  int P;
     
-  int myRank = 0; int P = 0;
-  myRank = MPI_Comm_rank(MPI_COMM_WORLD, &myRank);
-  P = MPI_Comm_size(MPI_COMM_WORLD, &P);
-
-  printf("processor %d of %d reporting in.\n", myRank, P); fflush(stdout);
-
+  MPI_Comm_rank(MPI_COMM_WORLD, &myRank);
+  MPI_Comm_size(MPI_COMM_WORLD, &P);
+  
   char *fileName = malloc(sizeof(char)*30); 
   strcpy(fileName, DEFAULT_FILE);
   int gens = DEFAULT_GENS;
@@ -39,9 +38,7 @@ int main(int argc, char* argv[]) {
   int* genList;
   genList = malloc(sizeof(int)*MAX_LIST_LEN);
   int listLen = 0;
-
   int i = 1;
-
   //parsing the args
   while(i < argc) {
     if(strcmp(argv[i], "--filename")==0 && i+1 < argc) {
@@ -72,7 +69,8 @@ int main(int argc, char* argv[]) {
       return -1;
     }
     i++;
-  }
+  } 
+  MPI_Barrier(MPI_COMM_WORLD);
   
   if(myRank == 0) {
     printf("fileName: %s\n", fileName);
@@ -94,6 +92,8 @@ int main(int argc, char* argv[]) {
 void gameOfLife(char *fileName, int gens, int rows, int cols, int* genList, int listLen, int myRank, int P) {
   int* gameBoard = malloc(sizeof(int)*rows*cols); //This is the game board. For the sequential algorithm, we are using straight rowsxcols integer array. This will be compactified a bit in the parallel version. Hopefully.
   int* nextGen = malloc(sizeof(int)*rows*cols);
+
+  //printf("hello world from %d of %d\n", myRank, P);
   
   int i = 0; int j = 0;
   //master read in to the gameboard
@@ -132,14 +132,7 @@ void gameOfLife(char *fileName, int gens, int rows, int cols, int* genList, int 
         listCounter++;
       }
     }
-    if(myRank == 0) { 
-      printf("current gen = %d\n", gen);
-      printf("before i loop\n"); 
-      printf("myRank*rows/P = %d\n", myRank*rows/P);
-      printf("(myRank+1)*rows/P = %d\n", (myRank+1)*rows/P);
-      fflush(stdout); }
     for(i = myRank*rows/P; i < (myRank+1)*rows/P; i++) {
-      if(myRank == 0) { printf("in i loop\n"); fflush(stdout); }
       for(j = 0; j < cols; j++) {
         int live = gameBoard[i*cols + j];
 	neighborCount = 0;
@@ -151,7 +144,7 @@ void gameOfLife(char *fileName, int gens, int rows, int cols, int* genList, int 
 	neighborCount += gameBoard[(i+1)%rows*cols + (j == 0 ? cols-1 : j-1)];
 	neighborCount += gameBoard[(i+1)%rows*cols + j];
 	neighborCount += gameBoard[(i+1)%rows*cols + (j+1)%cols];
-	if (myRank == 0) { printf("(%d,%d): live: %d, neighbors: %d\n",i,j,live,neighborCount); fflush(stdout); }
+	//if (myRank == 0) { printf("(%d,%d): live: %d, neighbors: %d\n",i,j,live,neighborCount); fflush(stdout); }
 	if(live) {
 	  if(neighborCount < 2 || neighborCount >3) {
 	    nextGen[i*cols + j] = 0;
@@ -180,7 +173,10 @@ void gameOfLife(char *fileName, int gens, int rows, int cols, int* genList, int 
   endTime = MPI_Wtime();
 
   double timeDiff = endTime - startTime;
-  printf("total time: %f\n", timeDiff); fflush(stdout);
+  for(i = 0; i < P; i ++) {
+    if (myRank == i) printf("Processor %d: %f seconds\n", myRank, timeDiff); fflush(stdout);
+    MPI_Barrier(MPI_COMM_WORLD);
+  }
   
   free(gameBoard);
   free(nextGen);
