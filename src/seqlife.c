@@ -159,7 +159,8 @@ void printTheBoard(int *gameBoard, int rows, int cols) {
   for(i = 0; i < cols; i++) {
     //printf("Row %d: ", i);
     for(j = 0; j < rows; j++) {
-      printf("%c ", gameBoard[j*cols+i] == 1 ? 'x' : ' ');
+      //printf("%c ", gameBoard[i*cols+j] == 1 ? 'x' : ' ');
+      printf("%d ", gameBoard[i*cols+j]);
       fflush(stdout);
     }
     printf("\n"); fflush(stdout);
