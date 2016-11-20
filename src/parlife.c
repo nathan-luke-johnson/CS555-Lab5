@@ -5,6 +5,7 @@
 
 #include<stdio.h>
 #include<stdlib.h>
+#include<math.h>
 #include<ctype.h>
 #include<string.h>
 #include<mpi.h>
@@ -132,7 +133,7 @@ void gameOfLife(char *fileName, int gens, int rows, int cols, int* genList, int 
         listCounter++;
       }
     }
-    for(i = myRank*rows/P; i < (myRank+1)*rows/P; i++) {
+    for(i = (int)ceil((double)myRank*rows/P); i < (int)ceil((double)(myRank+1)*rows/P); i++) {
       for(j = 0; j < cols; j++) {
         int live = gameBoard[i*cols + j];
 	neighborCount = 0;
@@ -159,8 +160,8 @@ void gameOfLife(char *fileName, int gens, int rows, int cols, int* genList, int 
       }
     }
     
-    MPI_Allgather(&nextGen[(myRank*rows*cols)/P],rows*cols/P, 
-                  MPI_INT, gameBoard, rows*cols/P,
+    MPI_Allgather(&nextGen[(int)ceil((double)myRank*rows*cols/P)],(int)ceil((double)rows*cols/P), 
+                  MPI_INT, gameBoard, (int)ceil((double)rows*cols/P),
 		  MPI_INT, MPI_COMM_WORLD); //Everybody gets all the things!
 
     //clock_t goal = 1000*(CLOCKS_PER_SEC/1000) + clock();

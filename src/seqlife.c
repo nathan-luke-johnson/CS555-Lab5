@@ -147,8 +147,6 @@ void gameOfLife(char *fileName, int gens, int rows, int cols, int* genList, int 
 	}
       }
     }
-    //clock_t goal = 1000*(CLOCKS_PER_SEC/1000) + clock();
-    //while (goal > clock()) gen = gen;
     temp = nextGen;
     nextGen = gameBoard;
     gameBoard = temp;
