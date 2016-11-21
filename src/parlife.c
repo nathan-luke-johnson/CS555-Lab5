@@ -18,6 +18,7 @@
 
 void gameOfLife(char *fileName, int gens, int rows, int cols, int* genList, int listLen, int myRank, int P);
 void printTheBoard(int *gameBoard, int rows, int cols);
+void printPartialBoard(int * gameBoard, int rows, int cols, int startRow, int endRow);
 int compareInt(const void *a, const void *b);
 
 int main(int argc, char* argv[]) {
@@ -29,7 +30,11 @@ int main(int argc, char* argv[]) {
     
   MPI_Comm_rank(MPI_COMM_WORLD, &myRank);
   MPI_Comm_size(MPI_COMM_WORLD, &P);
-  
+  if(P > 1 && P%2 == 1) { 
+    printf("Number of processors must be 1 or a multiple of 2\n");
+    fflush(stdout);
+    return -1;
+  }
   char *fileName = malloc(sizeof(char)*30); 
   strcpy(fileName, DEFAULT_FILE);
   int gens = DEFAULT_GENS;
@@ -93,7 +98,7 @@ int main(int argc, char* argv[]) {
 void gameOfLife(char *fileName, int gens, int rows, int cols, int* genList, int listLen, int myRank, int P) {
   int* gameBoard = malloc(sizeof(int)*rows*cols); //This is the game board. For the sequential algorithm, we are using straight rowsxcols integer array. This will be compactified a bit in the parallel version. Hopefully.
   int* nextGen = malloc(sizeof(int)*rows*cols);
-
+  int* temp = NULL;
   //printf("hello world from %d of %d\n", myRank, P);
   
   int i = 0; int j = 0;
@@ -123,17 +128,35 @@ void gameOfLife(char *fileName, int gens, int rows, int cols, int* genList, int 
 
   int gen = 0; int listCounter = 0;
   int neighborCount = 0;
+  int startRow;
+  int endRow;
+  startRow = myRank*rows/P;
+  endRow = (myRank+1)*rows/P;
+  /*for(i = 0; i < P; i++) {
+    if(myRank == i) {
+      printf("Processor %d doing rows %d - %d\n",myRank,startRow, endRow);
+    }
+    MPI_Barrier(MPI_COMM_WORLD);
+  }
+  fflush(stdout);
+  return;*/
+
   for(gen = 0; gen <= gens; gen++) {
     
     //If current gen is for printing, then print.
-    if (myRank == 0) {
-      if(listCounter < listLen && gen == genList[listCounter]) {
-        printf("gen: %d\n", gen); fflush(stdout);
-        printTheBoard(gameBoard, rows, cols);
-        listCounter++;
+    if(listCounter < listLen && gen == genList[listCounter]) {
+      if(myRank == 0) { printf("gen: %d\n", gen); fflush(stdout); }
+      for(i = 0; i < P; i++) {
+        if(myRank == i) {
+          printPartialBoard(gameBoard, rows, cols, startRow, endRow);
+	}
+	fflush(stdout);
+	MPI_Barrier(MPI_COMM_WORLD);
       }
+      listCounter++;
     }
-    for(i = (int)ceil((double)myRank*rows/P); i < (int)ceil((double)(myRank+1)*rows/P); i++) {
+    
+    for(i = startRow; i < endRow; i++) {
       for(j = 0; j < cols; j++) {
         int live = gameBoard[i*cols + j];
 	neighborCount = 0;
@@ -160,22 +183,44 @@ void gameOfLife(char *fileName, int gens, int rows, int cols, int* genList, int 
       }
     }
     
-    MPI_Allgather(&nextGen[(int)ceil((double)myRank*rows*cols/P)],(int)ceil((double)rows*cols/P), 
-                  MPI_INT, gameBoard, (int)ceil((double)rows*cols/P),
-		  MPI_INT, MPI_COMM_WORLD); //Everybody gets all the things!
+    temp = nextGen;
+    nextGen = gameBoard;
+    gameBoard = temp;
+    /*MPI_Allgather(&nextGen[startRow*cols],(endRow-startRow)*cols, 
+                  MPI_INT, gameBoard, (endRow-startRow)*cols,
+		  MPI_INT, MPI_COMM_WORLD); //Everybody gets all the things!*/
+    if(P > 1) {
+    if(myRank%2==0) {
+      //send low
+      MPI_Send(&gameBoard[startRow*cols], cols, MPI_INT, myRank==0 ? P-1 : myRank-1, 0, MPI_COMM_WORLD);
+      //recv low
+      MPI_Recv(myRank==0 ? &gameBoard[(rows-1)*cols] : &gameBoard[(startRow-1)*cols], cols, MPI_INT, myRank==0 ? P-1 : myRank-1, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+      //send high
+      MPI_Send(&gameBoard[(endRow-1)*cols], cols, MPI_INT, myRank == P-1 ? 0 : myRank+1, 0, MPI_COMM_WORLD);
+      //recv high
+      MPI_Recv(myRank==P-1 ? &gameBoard[0] : &gameBoard[endRow*cols], cols, MPI_INT, myRank==P-1 ? 0 : myRank+1, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+    } else {
+      //recv high
+      MPI_Recv(myRank==P-1 ? &gameBoard[0] : &gameBoard[endRow*cols], cols, MPI_INT, myRank==P-1 ? 0 : myRank+1, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+      //send high
+      MPI_Send(&gameBoard[(endRow-1)*cols], cols, MPI_INT, myRank == P-1 ? 0 : myRank+1, 0, MPI_COMM_WORLD);
+      //recv low
+      MPI_Recv(myRank==0 ? &gameBoard[(rows-1)*cols] : &gameBoard[(startRow-1)*cols], cols, MPI_INT, myRank==0 ? P-1 : myRank-1, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+      //send low
+      MPI_Send(&gameBoard[startRow*cols], cols, MPI_INT, myRank==0 ? P-1 : myRank-1, 0, MPI_COMM_WORLD);
+    } }
+    MPI_Barrier(MPI_COMM_WORLD);
 
     //clock_t goal = 1000*(CLOCKS_PER_SEC/1000) + clock();
     //while (goal > clock()) gen = gen;
-    //temp = nextGen;
-    //nextGen = gameBoard;
-    //gameBoard = temp;
   }
 
   endTime = MPI_Wtime();
 
   double timeDiff = endTime - startTime;
   for(i = 0; i < P; i ++) {
-    if (myRank == i) printf("Processor %d: %f seconds\n", myRank, timeDiff); fflush(stdout);
+    if (myRank == i) printf("Processor %d: %f seconds\n", myRank, timeDiff); 
+    fflush(stdout);
     MPI_Barrier(MPI_COMM_WORLD);
   }
   
@@ -185,12 +230,21 @@ void gameOfLife(char *fileName, int gens, int rows, int cols, int* genList, int 
 
 void printTheBoard(int *gameBoard, int rows, int cols) {
   int i = 0; int j = 0;
-  for(i = 0; i < cols; i++) {
+  for(i = 0; i < rows; i++) {
     //printf("Row %d: ", i);
-    for(j = 0; j < rows; j++) {
+    for(j = 0; j < cols; j++) {
       //printf("%c ", gameBoard[i*cols+j] == 1 ? 'x' : ' ');
       printf("%d ", gameBoard[i*cols+j]);
-      fflush(stdout);
+    }
+    printf("\n"); fflush(stdout);
+  }
+}
+
+void printPartialBoard(int *gameBoard, int rows, int cols, int startRow, int endRow) {
+  int i = 0; int j = 0;
+  for(i = startRow; i < endRow; i++) {
+    for(j = 0; j < cols; j++) {
+      printf("%d ", gameBoard[i*cols+j]);
     }
     printf("\n"); fflush(stdout);
   }
