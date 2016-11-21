@@ -16,14 +16,13 @@
 #define DEFAULT_FILE "inputFile"
 #define MAX_LIST_LEN 100
 
-void gameOfLife(char *fileName, int gens, int rows, int cols, int* genList, int listLen, int myRank, int P);
-void printTheBoard(int *gameBoard, int rows, int cols);
-void printPartialBoard(int * gameBoard, int rows, int cols, int startRow, int endRow);
+void gameOfLife(char *fileName, int gens, int rows, int cols, int* genList, int listLen, int myRank, int P, int print_x);
+void printTheBoard(int *gameBoard, int rows, int cols, int print_x);
+void printPartialBoard(int * gameBoard, int rows, int cols, int startRow, int endRow, int print_x);
 int compareInt(const void *a, const void *b);
 
 int main(int argc, char* argv[]) {
-
-
+  
   MPI_Init(&argc, &argv);
   int myRank; 
   int P;
@@ -40,6 +39,7 @@ int main(int argc, char* argv[]) {
   int gens = DEFAULT_GENS;
   int rows = DEFAULT_ROWS;
   int cols = DEFAULT_COLS;
+  int print_x = 0;
   
   int* genList;
   genList = malloc(sizeof(int)*MAX_LIST_LEN);
@@ -67,9 +67,11 @@ int main(int argc, char* argv[]) {
 	  //printf("adding: "); fflush(stdout);
 	  genList[listLen++] = atoi(argv[++i]);
 	  //printf("added %s\n", argv[i]); fflush(stdout);
-	}
+	} else { break; }
       }
       qsort(genList, listLen, sizeof(int), compareInt); //Make them in order.
+    } else if (strcmp(argv[i], "--x")==0) {
+      print_x = 1;
     } else {
       printf("Error at \"%s\"\n", argv[i]);
       return -1;
@@ -87,7 +89,7 @@ int main(int argc, char* argv[]) {
     fflush(stdout);
   }
 
-  gameOfLife(fileName, gens, rows, cols, genList, listLen, myRank, P);
+  gameOfLife(fileName, gens, rows, cols, genList, listLen, myRank, P, print_x);
   
   free(genList);
   MPI_Finalize();
@@ -95,7 +97,7 @@ int main(int argc, char* argv[]) {
 }
 
 /* Game of Life algorithm. */
-void gameOfLife(char *fileName, int gens, int rows, int cols, int* genList, int listLen, int myRank, int P) {
+void gameOfLife(char *fileName, int gens, int rows, int cols, int* genList, int listLen, int myRank, int P, int print_x) {
   int* gameBoard = malloc(sizeof(int)*rows*cols); //This is the game board. For the sequential algorithm, we are using straight rowsxcols integer array. This will be compactified a bit in the parallel version. Hopefully.
   int* nextGen = malloc(sizeof(int)*rows*cols);
   int* temp = NULL;
@@ -148,7 +150,7 @@ void gameOfLife(char *fileName, int gens, int rows, int cols, int* genList, int 
       if(myRank == 0) { printf("gen: %d\n", gen); fflush(stdout); }
       for(i = 0; i < P; i++) {
         if(myRank == i) {
-          printPartialBoard(gameBoard, rows, cols, startRow, endRow);
+          printPartialBoard(gameBoard, rows, cols, startRow, endRow, print_x);
 	}
 	fflush(stdout);
 	MPI_Barrier(MPI_COMM_WORLD);
@@ -228,23 +230,27 @@ void gameOfLife(char *fileName, int gens, int rows, int cols, int* genList, int 
   free(nextGen);
 }
 
-void printTheBoard(int *gameBoard, int rows, int cols) {
+void printTheBoard(int *gameBoard, int rows, int cols, int print_x) {
   int i = 0; int j = 0;
   for(i = 0; i < rows; i++) {
     //printf("Row %d: ", i);
     for(j = 0; j < cols; j++) {
-      //printf("%c ", gameBoard[i*cols+j] == 1 ? 'x' : ' ');
       printf("%d ", gameBoard[i*cols+j]);
     }
     printf("\n"); fflush(stdout);
   }
 }
 
-void printPartialBoard(int *gameBoard, int rows, int cols, int startRow, int endRow) {
+void printPartialBoard(int *gameBoard, int rows, int cols, int startRow, int endRow, int print_x) {
   int i = 0; int j = 0;
   for(i = startRow; i < endRow; i++) {
     for(j = 0; j < cols; j++) {
-      printf("%d ", gameBoard[i*cols+j]);
+      if( print_x == 1) {
+        printf("%s ", gameBoard[i*cols+j] == 1 ? "x" : " ");
+        //printf("%c ", gameBoard[i*cols+j] == 1 ? 'x' : ' ');
+      } else {
+        printf("%d ", gameBoard[i*cols+j]);
+      }
     }
     printf("\n"); fflush(stdout);
   }
