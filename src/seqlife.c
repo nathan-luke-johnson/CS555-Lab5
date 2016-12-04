@@ -79,7 +79,7 @@ int main(int argc, char* argv[]) {
 
 /* Game of Life algorithm. */
 void gameOfLife(char *fileName, int gens, int rows, int cols, int* genList, int listLen) {
-  int* gameBoard = malloc(sizeof(int)*rows*cols); //This is the game board. For the sequential algorithm, we are using straight rowsxcols integer array. This will be compactified a bit in the parallel version. Hopefully.
+  int* gameBoard = malloc(sizeof(int)*rows*cols);
   int* nextGen = malloc(sizeof(int)*rows*cols);
   int* temp = NULL;
   //read in to the gameboard

@@ -9,6 +9,7 @@
 #include<ctype.h>
 #include<string.h>
 #include<mpi.h>
+#include<float.h>
 
 #define DEFAULT_GENS 100
 #define DEFAULT_ROWS 100
@@ -125,6 +126,13 @@ void gameOfLife(char *fileName, int gens, int rows, int cols, int* genList, int 
   // Timer start-o
   double startTime, endTime;
   startTime = MPI_Wtime();
+
+  double genDelayStartTime = 0.0;
+  double genDelayEndTime = 0.0;
+  double genDelay = 0.0;
+  double genDelayMax = DBL_MIN;
+  double genDelayMin = DBL_MAX;
+  double totalDelay = 0.0;
   
   MPI_Bcast(gameBoard, rows*cols, MPI_INT, 0, MPI_COMM_WORLD);
 
@@ -191,6 +199,8 @@ void gameOfLife(char *fileName, int gens, int rows, int cols, int* genList, int 
     /*MPI_Allgather(&nextGen[startRow*cols],(endRow-startRow)*cols, 
                   MPI_INT, gameBoard, (endRow-startRow)*cols,
 		  MPI_INT, MPI_COMM_WORLD); //Everybody gets all the things!*/
+
+    genDelayStartTime = MPI_Wtime();
     if(P > 1) {
     if(myRank%2==0) {
       //send low
@@ -212,6 +222,11 @@ void gameOfLife(char *fileName, int gens, int rows, int cols, int* genList, int 
       MPI_Send(&gameBoard[startRow*cols], cols, MPI_INT, myRank==0 ? P-1 : myRank-1, 0, MPI_COMM_WORLD);
     } }
     MPI_Barrier(MPI_COMM_WORLD);
+    genDelayEndTime = MPI_Wtime();
+    genDelay = genDelayEndTime-genDelayStartTime;
+    totalDelay += genDelay;
+    if(genDelay > genDelayMax) { genDelayMax = genDelay; }
+    if(genDelay < genDelayMin) { genDelayMin = genDelay; }
 
     //clock_t goal = 1000*(CLOCKS_PER_SEC/1000) + clock();
     //while (goal > clock()) gen = gen;
@@ -221,7 +236,12 @@ void gameOfLife(char *fileName, int gens, int rows, int cols, int* genList, int 
 
   double timeDiff = endTime - startTime;
   for(i = 0; i < P; i ++) {
-    if (myRank == i) printf("Processor %d: %f seconds\n", myRank, timeDiff); 
+    if (myRank == i) {
+      printf("Processor %d: %f seconds\n", myRank, timeDiff); 
+      printf("Processor %d: %f avg delay between gens\n", myRank, totalDelay/(double)gens);
+      printf("Processor %d: %f min delay\n", myRank, genDelayMin);
+      printf("Processor %d: %f max delay\n", myRank, genDelayMax);
+    }
     fflush(stdout);
     MPI_Barrier(MPI_COMM_WORLD);
   }
